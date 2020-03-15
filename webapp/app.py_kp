@@ -1,0 +1,88 @@
+import flask
+import pickle
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+import warnings; warnings.simplefilter('ignore')
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import classification_report
+
+# Use pickle to load in the pre-trained model.
+def tune_model(input_variables, no_of_trees):
+	print("=====No of estimator===")
+	print(no_of_trees)
+	if no_of_trees == 20:
+		with open(f'model/random-forest-classifier.pkl', 'rb') as f:
+			rf_model = pickle.load(f)
+	else:
+		print("---Tune Model----")
+		bankdata = pd.read_csv("bill_authentication.csv")
+		X = bankdata.drop('Class', axis=1)  
+		y = bankdata['Class']		
+		X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3, random_state = 0)		
+		classfier = RandomForestClassifier(n_estimators=20, random_state= 0)
+		classfier.fit(X_train, y_train)
+		y_pred = classfier.predict(X_test)
+		with open('model/random-forest-classifier1.pkl', 'wb') as file:
+			pickle.dump(classfier, file)
+		with open(f'model/random-forest-classifier1.pkl', 'rb') as f:
+			rf_model = pickle.load(f)
+
+	prediction =rf_model.predict(input_variables)[0]
+	print("-----Prediction------")
+	print(prediction)
+	return prediction
+
+
+with open(f'model/svm-classifier.pkl', 'rb') as f:
+    svm_model = pickle.load(f)
+
+# with open(f'model/decision-tree-classifier.pkl', 'rb') as f:
+    # dt_model = pickle.load(f)
+
+
+app = flask.Flask(__name__, template_folder='templates')
+app.debug = True
+@app.route('/', methods=['GET', 'POST'])
+def main():
+	if flask.request.method == 'GET':
+		return(flask.render_template('main.html'))
+
+	if flask.request.method == 'POST':
+
+		model_choice = flask.request.form['model']
+		print(model_choice)
+		variance = flask.request.form['variance']
+		skewness = flask.request.form['skewness']
+		curtosis = flask.request.form['curtosis']
+		entropy  = flask.request.form['entropy']
+		estimator = flask.request.form['estimator']
+
+		print(f"--Estimaor---{estimator}")
+
+		input_variables = pd.DataFrame([[variance, skewness, curtosis, entropy]], columns=['variance', 'skewness', 'curtosis' ,'entropy'], dtype=float)
+
+		print(input_variables)
+		#exit()
+		if model_choice == "svm":
+			prediction = svm_model.predict(input_variables)[0]
+		elif model_choice == "decision_tree":
+			prediction = dt_model.predict(input_variables)[0]
+		else:
+			prediction = tune_model(input_variables, estimator)
+
+		print(f"Prediction-{prediction}")
+		return flask.render_template('main.html', result='True', original_input={
+			'variance' : variance,
+			'skewness' : skewness,
+			'curtosis' : curtosis,
+			'entropy'  : entropy
+			},
+			Prediction= prediction)
+
+if __name__ == '__main__':
+	app.run(debug=True)
